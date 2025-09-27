@@ -10,13 +10,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from mongo_init import get_db
 
 # Настройка логирования
+log_handlers = [logging.StreamHandler()]
+
+# Пытаемся добавить файловый обработчик
+try:
+    os.makedirs('/app/logs', exist_ok=True)
+    log_handlers.append(logging.FileHandler('/app/logs/parser_worker.log', encoding='utf-8'))
+except (PermissionError, OSError) as e:
+    print(f"Warning: Cannot create log file: {e}. Using console output only.")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('/app/logs/parser_worker.log', encoding='utf-8')
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger(__name__)
 

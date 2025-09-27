@@ -221,7 +221,7 @@ class StockBot:
             )
 
 
-async def main():
+def main():
     """Основная функция запуска бота"""
     # Проверяем токен
     if not TELEGRAM_BOT_TOKEN:
@@ -243,9 +243,9 @@ async def main():
     
     # Запускаем бота
     print("🤖 Бот запущен и готов к работе!")
-    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
 
