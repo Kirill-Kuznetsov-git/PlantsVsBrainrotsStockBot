@@ -55,8 +55,8 @@ class StockBot:
         if stock.get('active'):
             message_parts.append("✅ <b>ТЕКУЩИЙ АКТИВНЫЙ СТОК</b>")
         
-        # ID стока
-        message_parts.append(f"🆔 ID: <code>{stock.get('id', 'N/A')}</code>")
+        # ID стока - убрано по запросу пользователя
+        # message_parts.append(f"🆔 ID: <code>{stock.get('id', 'N/A')}</code>")
         message_parts.append("")  # Пустая строка
         
         # Данные о растениях
@@ -149,43 +149,19 @@ class StockBot:
         
         message = "\n".join(message_parts)
         
-        # Создаем клавиатуру для навигации
-        keyboard = []
-        buttons = []
-        
-        # Кнопка "Назад"
-        if page > 0:
-            buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"page_{page-1}"))
-        
-        # Информация о странице
-        total_pages = (total_stocks + STOCKS_PER_PAGE - 1) // STOCKS_PER_PAGE
-        buttons.append(InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="noop"))
-        
-        # Кнопка "Вперед"
-        if skip + STOCKS_PER_PAGE < total_stocks:
-            buttons.append(InlineKeyboardButton("Вперед ➡️", callback_data=f"page_{page+1}"))
-        
-        if buttons:
-            keyboard.append(buttons)
-        
-        # Кнопка обновления
-        keyboard.append([InlineKeyboardButton("🔄 Обновить", callback_data=f"refresh_{page}")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+        # Убираем все кнопки - отправляем только текст
         
         # Отправляем или редактируем сообщение
         if update.callback_query:
             await update.callback_query.edit_message_text(
                 message, 
-                parse_mode='HTML',
-                reply_markup=reply_markup
+                parse_mode='HTML'
             )
             await update.callback_query.answer()
         else:
             await update.message.reply_text(
                 message,
-                parse_mode='HTML',
-                reply_markup=reply_markup
+                parse_mode='HTML'
             )
     
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
