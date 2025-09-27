@@ -36,6 +36,21 @@ class StockBot:
     def __init__(self):
         self.db: MotorDatabase = get_db()
         self.stock_collection = self.db.stock
+        self.subscriptions_collection = self.db.plant_subscriptions
+        
+        # Список доступных растений для подписки
+        self.available_plants = {
+            'sunflower': {'emoji': '🌻', 'name': 'Sunflower'},
+            'pumpkin': {'emoji': '🎃', 'name': 'Pumpkin'},
+            'dragon_fruit': {'emoji': '🐉', 'name': 'Dragon Fruit'},
+            'eggplant': {'emoji': '🍆', 'name': 'Eggplant'},
+            'cactus': {'emoji': '🌵', 'name': 'Cactus'},
+            'strawberry': {'emoji': '🍓', 'name': 'Strawberry'},
+            'corn': {'emoji': '🌽', 'name': 'Corn'},
+            'tomato': {'emoji': '🍅', 'name': 'Tomato'},
+            'carrot': {'emoji': '🥕', 'name': 'Carrot'},
+            'pepper': {'emoji': '🌶️', 'name': 'Pepper'}
+        }
         
     def format_stock(self, stock: dict) -> str:
         """Форматирование одного стока для отображения"""
@@ -85,7 +100,8 @@ class StockBot:
         """Обработчик команды /start"""
         keyboard = [
             [KeyboardButton("📊 Текущий сток")],
-            [KeyboardButton("📜 История стоков")]
+            [KeyboardButton("📜 История стоков")],
+            [KeyboardButton("🔔 Автосток")]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -94,7 +110,8 @@ class StockBot:
             "Я помогу вам отслеживать изменения стоков.\n\n"
             "<b>Доступные команды:</b>\n"
             "• /current - Показать текущий активный сток\n"
-            "• /history - История всех стоков\n\n"
+            "• /history - История всех стоков\n"
+            "• /autostock - Управление подписками на растения\n\n"
             "Или используйте кнопки меню ниже 👇"
         )
         
@@ -180,6 +197,121 @@ class StockBot:
             page = int(data.split("_")[1])
             await self.show_stocks_page(update, context, page)
             await query.answer("✅ Обновлено!")
+        elif data == "autostock_menu":
+            await self.show_autostock_menu(update, context)
+        elif data.startswith("toggle_plant_"):
+            plant_id = data.replace("toggle_plant_", "")
+            await self.toggle_plant_subscription(update, context, plant_id)
+        elif data == "clear_subscriptions":
+            await self.clear_all_subscriptions(update, context)
+    
+    async def autostock_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для управления автостоком"""
+        await self.show_autostock_menu(update, context, from_command=True)
+    
+    async def show_autostock_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE, from_command: bool = False):
+        """Показать меню управления подписками на растения"""
+        user_id = update.effective_user.id
+        
+        # Получаем текущие подписки пользователя
+        user_sub = await self.subscriptions_collection.find_one({'user_id': user_id})
+        subscribed_plants = user_sub.get('plants', []) if user_sub else []
+        
+        # Создаем клавиатуру с растениями
+        keyboard = []
+        row = []
+        
+        for plant_id, plant_info in self.available_plants.items():
+            is_subscribed = plant_id in subscribed_plants
+            button_text = f"{'✅' if is_subscribed else '❌'} {plant_info['emoji']} {plant_info['name']}"
+            callback_data = f"toggle_plant_{plant_id}"
+            
+            row.append(InlineKeyboardButton(button_text, callback_data=callback_data))
+            
+            # По 2 кнопки в ряд
+            if len(row) == 2:
+                keyboard.append(row)
+                row = []
+        
+        # Добавляем оставшиеся кнопки
+        if row:
+            keyboard.append(row)
+        
+        # Кнопка очистки всех подписок
+        if subscribed_plants:
+            keyboard.append([InlineKeyboardButton("🗑️ Отписаться от всех", callback_data="clear_subscriptions")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Формируем сообщение
+        message = "🔔 <b>Управление автостоком</b>\n\n"
+        
+        if subscribed_plants:
+            message += f"Вы подписаны на {len(subscribed_plants)} растений.\n"
+            message += "Вы получите уведомление, когда они появятся в стоке.\n\n"
+        else:
+            message += "Вы не подписаны ни на одно растение.\n\n"
+        
+        message += "Нажмите на растение, чтобы подписаться или отписаться:"
+        
+        # Отправляем или редактируем сообщение
+        if from_command:
+            await update.message.reply_text(message, parse_mode='HTML', reply_markup=reply_markup)
+        else:
+            await update.callback_query.edit_message_text(message, parse_mode='HTML', reply_markup=reply_markup)
+            await update.callback_query.answer()
+    
+    async def toggle_plant_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE, plant_id: str):
+        """Переключить подписку на растение"""
+        user_id = update.effective_user.id
+        username = update.effective_user.username
+        
+        # Проверяем, что растение существует
+        if plant_id not in self.available_plants:
+            await update.callback_query.answer("❌ Неизвестное растение")
+            return
+        
+        # Получаем текущие подписки
+        user_sub = await self.subscriptions_collection.find_one({'user_id': user_id})
+        subscribed_plants = user_sub.get('plants', []) if user_sub else []
+        
+        # Переключаем подписку
+        plant_info = self.available_plants[plant_id]
+        if plant_id in subscribed_plants:
+            subscribed_plants.remove(plant_id)
+            await update.callback_query.answer(f"❌ Отписались от {plant_info['emoji']} {plant_info['name']}")
+        else:
+            subscribed_plants.append(plant_id)
+            await update.callback_query.answer(f"✅ Подписались на {plant_info['emoji']} {plant_info['name']}")
+        
+        # Сохраняем в базу
+        await self.subscriptions_collection.update_one(
+            {'user_id': user_id},
+            {
+                '$set': {
+                    'user_id': user_id,
+                    'username': username,
+                    'plants': subscribed_plants,
+                    'updated_at': datetime.utcnow()
+                }
+            },
+            upsert=True
+        )
+        
+        # Обновляем меню
+        await self.show_autostock_menu(update, context)
+    
+    async def clear_all_subscriptions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Очистить все подписки"""
+        user_id = update.effective_user.id
+        
+        # Удаляем подписки
+        await self.subscriptions_collection.delete_one({'user_id': user_id})
+        
+        await update.callback_query.answer("🗑️ Все подписки удалены")
+        
+        # Обновляем меню
+        await self.show_autostock_menu(update, context)
     
     async def text_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик текстовых сообщений (кнопок меню)"""
@@ -189,11 +321,14 @@ class StockBot:
             await self.current_stock_command(update, context)
         elif text == "📜 История стоков":
             await self.history_command(update, context)
+        elif text == "🔔 Автосток":
+            await self.autostock_command(update, context)
         else:
             await update.message.reply_text(
                 "❓ Неизвестная команда. Используйте меню или команды:\n"
                 "/current - текущий сток\n"
-                "/history - история стоков"
+                "/history - история стоков\n"
+                "/autostock - управление автостоком"
             )
 
 
@@ -214,6 +349,7 @@ def main():
     app.add_handler(CommandHandler("start", bot.start_command))
     app.add_handler(CommandHandler("current", bot.current_stock_command))
     app.add_handler(CommandHandler("history", bot.history_command))
+    app.add_handler(CommandHandler("autostock", bot.autostock_command))
     app.add_handler(CallbackQueryHandler(bot.button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.text_handler))
     
