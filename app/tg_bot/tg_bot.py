@@ -57,6 +57,7 @@ class StockBot:
         self.db: MotorDatabase = get_db()
         self.stock_collection = self.db.stocks
         self.subscriptions_collection = self.db.plant_subscriptions
+        self.users_collection = self.db.users  # Добавляем коллекцию для пользователей
         
         # Список доступных предметов для подписки
         # Теперь включаем и seeds и gear
@@ -91,9 +92,9 @@ class StockBot:
         if not REQUIRED_LINKS:
             return True
         
-        # Для приватных каналов мы не можем проверить подписку через API
-        # Поэтому проверяем, подтверждал ли пользователь подписку ранее
-        user_confirmed = context.user_data.get('subscription_confirmed', False)
+        # Проверяем в базе данных, подтверждал ли пользователь подписку
+        user_doc = await self.users_collection.find_one({'user_id': user_id})
+        user_confirmed = user_doc.get('subscription_confirmed', False) if user_doc else False
         
         if not user_confirmed:
             # Создаем клавиатуру со ссылками
@@ -423,8 +424,22 @@ class StockBot:
         
         # Обработка кнопки "Я подписался"
         if data == "check_subscription":
-            # Сохраняем подтверждение подписки
-            context.user_data['subscription_confirmed'] = True
+            # Сохраняем подтверждение подписки в базу данных
+            user_id = update.effective_user.id
+            username = update.effective_user.username
+            
+            await self.users_collection.update_one(
+                {'user_id': user_id},
+                {
+                    '$set': {
+                        'user_id': user_id,
+                        'username': username,
+                        'subscription_confirmed': True,
+                        'subscription_date': datetime.utcnow()
+                    }
+                },
+                upsert=True
+            )
             
             await query.answer("✅ Отлично! Теперь вам доступны все функции бота", show_alert=True)
             
