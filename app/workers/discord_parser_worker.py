@@ -73,7 +73,6 @@ async def parse_stock_message(message):
         'gear_stocks': {},
         'other_items': [],
         'raw_data': [],
-        'source': 'discord',
         'active': True  # Помечаем как активный сток
     }
     
@@ -213,7 +212,6 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # Игнорируем сообщения бота
     if message.author == bot.user:
         return
     
@@ -239,6 +237,7 @@ async def on_message(message):
     
     # Парсим сообщение
     print(f"\n🆕 Новое сообщение со стоком!")
+    print("message", message, type(message))
     stock_info = await parse_stock_message(message)
     
     # Выводим информацию
@@ -285,43 +284,6 @@ async def on_message(message):
     
     # Обрабатываем команды
     await bot.process_commands(message)
-
-# Команда для получения текущего стока
-@bot.command(name='current')
-async def current_command(ctx):
-    """Показывает текущий активный сток"""
-    if ctx.channel.id != CHANNEL_ID:
-        return
-    
-    active_stock = await stocks_collection.find_one({'active': True})
-    
-    if not active_stock:
-        await ctx.send("❌ Активный сток не найден")
-        return
-    
-    embed = discord.Embed(
-        title="📊 Текущий сток",
-        color=discord.Color.green(),
-        timestamp=active_stock['timestamp']
-    )
-    
-    # Seeds
-    if active_stock['seed_stocks']:
-        seeds_text = "\n".join([
-            f"{data['emoji']} {seed}: {data['value']}"
-            for seed, data in active_stock['seed_stocks'].items()
-        ])
-        embed.add_field(name="🌱 Seeds", value=seeds_text, inline=False)
-    
-    # Gear
-    if active_stock['gear_stocks']:
-        gear_text = "\n".join([
-            f"• {data['name']}: {data['value']}"
-            for data in active_stock['gear_stocks'].values()
-        ])
-        embed.add_field(name="⚙️ Gear", value=gear_text, inline=False)
-    
-    await ctx.send(embed=embed)
 
 # Запуск бота
 if __name__ == "__main__":
