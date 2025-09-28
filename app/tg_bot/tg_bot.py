@@ -35,30 +35,32 @@ STOCKS_PER_PAGE = 6  # Текущий + 5 предыдущих
 class StockBot:
     def __init__(self):
         self.db: MotorDatabase = get_db()
-        self.stock_collection = self.db.stocks
+        self.stock_collection = self.db.stock
         self.subscriptions_collection = self.db.plant_subscriptions
         
         # Список доступных предметов для подписки
         # Теперь включаем и seeds и gear
         self.available_items = {
             # Seeds
-            'sunflower': {'emoji': '🌻', 'name': 'Sunflower', 'type': 'seed'},
-            'pumpkin': {'emoji': '🎃', 'name': 'Pumpkin', 'type': 'seed'},
-            'dragon_fruit': {'emoji': '🐉', 'name': 'Dragon Fruit', 'type': 'seed'},
-            'eggplant': {'emoji': '🍆', 'name': 'Eggplant', 'type': 'seed'},
-            'cactus': {'emoji': '🌵', 'name': 'Cactus', 'type': 'seed'},
-            'strawberry': {'emoji': '🍓', 'name': 'Strawberry', 'type': 'seed'},
-            'corn': {'emoji': '🌽', 'name': 'Corn', 'type': 'seed'},
-            'tomato': {'emoji': '🍅', 'name': 'Tomato', 'type': 'seed'},
-            'carrot': {'emoji': '🥕', 'name': 'Carrot', 'type': 'seed'},
-            'pepper': {'emoji': '🌶️', 'name': 'Pepper', 'type': 'seed'},
+            'cactus_seed': {'emoji': '🌵', 'name': 'Cactus seed', 'type': 'seed', 'rarity': 'Rare'},
+            'strawberry_seed': {'emoji': '🍓', 'name': 'Strawberry seed', 'type': 'seed', 'rarity': 'Rare'},
+            'pumpkin_seed': {'emoji': '🎃', 'name': 'Pumpkin seed', 'type': 'seed', 'rarity': 'Epic'},
+            'sunflower_seed': {'emoji': '🌻', 'name': 'Sunflower seed', 'type': 'seed', 'rarity': 'Epic'},
+            'dragon_fruit_seed': {'emoji': '🐉', 'name': 'Dragon fruit seed', 'type': 'seed', 'rarity': 'Legendary'},
+            'eggplant_seed': {'emoji': '🍆', 'name': 'Eggplant seed', 'type': 'seed', 'rarity': 'Legendary'},
+            'watermelon_seed': {'emoji': '🍉', 'name': 'Watermelon seed', 'type': 'seed', 'rarity': 'Mythic'},
+            'grape_seed': {'emoji': '🍇', 'name': 'Grape seed', 'type': 'seed', 'rarity': 'Mythic'},
+            'cocotank_seed': {'emoji': '🥥', 'name': 'Cocotank seed', 'type': 'seed', 'rarity': 'Godly'},
+            'carnivorous_plant_seed': {'emoji': '🌿', 'name': 'Carnivorous plant seed', 'type': 'seed', 'rarity': 'Godly'},
+            'mr_carrot_seed': {'emoji': '🥕', 'name': 'Mr Carrot seed', 'type': 'seed', 'rarity': 'Secret'},
+            'tomatrio_seed': {'emoji': '🍅', 'name': 'Tomatrio seed', 'type': 'seed', 'rarity': 'Secret'},
+            'shroombino_seed': {'emoji': '🍄', 'name': 'Shroombino seed', 'type': 'seed', 'rarity': 'Secret'},
             # Gear
-            'common_chest': {'emoji': '📦', 'name': 'Common Chest', 'type': 'gear'},
-            'rare_chest': {'emoji': '💎', 'name': 'Rare Chest', 'type': 'gear'},
-            'legendary_chest': {'emoji': '👑', 'name': 'Legendary Chest', 'type': 'gear'},
-            'fertilizer': {'emoji': '💩', 'name': 'Fertilizer', 'type': 'gear'},
-            'water_can': {'emoji': '💧', 'name': 'Water Can', 'type': 'gear'},
-            'shovel': {'emoji': '🔧', 'name': 'Shovel', 'type': 'gear'}
+            'water_bucket': {'emoji': '🪣', 'name': 'Water Bucket', 'type': 'gear', 'rarity': 'Epic'},
+            'frost_grenade': {'emoji': '❄️', 'name': 'Frost Grenade', 'type': 'gear', 'rarity': 'Epic'},
+            'banana_gun': {'emoji': '🍌', 'name': 'Banana Gun', 'type': 'gear', 'rarity': 'Epic'},
+            'frost_blower': {'emoji': '🌬️', 'name': 'Frost Blower', 'type': 'gear', 'rarity': 'Legendary'},
+            'carrot_launcher': {'emoji': '🥕', 'name': 'Carrot Launcher', 'type': 'gear', 'rarity': 'Godly'}
         }
         
     def format_stock(self, stock: dict, is_current: bool = False) -> str:
@@ -93,8 +95,17 @@ class StockBot:
             for seed_name, quantity in seeds_stock.items():
                 # Находим эмодзи для семени
                 emoji = ''
+                normalized_seed = seed_name.lower().replace(' ', '_')
+                # Также проверяем вариант с добавлением "_seed"
+                normalized_seed_with_suffix = normalized_seed + '_seed' if not normalized_seed.endswith('_seed') else normalized_seed
+                
                 for item_id, item_info in self.available_items.items():
-                    if item_info['name'].lower() == seed_name.lower() and item_info['type'] == 'seed':
+                    if item_info['type'] == 'seed' and (
+                        item_info['name'].lower() == seed_name.lower() or 
+                        item_id == normalized_seed or
+                        item_id == normalized_seed_with_suffix or
+                        item_info['name'].lower().replace(' seed', '') == seed_name.lower()
+                    ):
                         emoji = item_info['emoji'] + ' '
                         break
                 message_parts.append(f"{emoji}{seed_name}: <b>{quantity}</b>")
@@ -106,8 +117,12 @@ class StockBot:
             for gear_name, quantity in gear_stock.items():
                 # Находим эмодзи для снаряжения
                 emoji = ''
+                normalized_gear = gear_name.lower().replace(' ', '_')
                 for item_id, item_info in self.available_items.items():
-                    if item_info['name'].lower() == gear_name.lower() and item_info['type'] == 'gear':
+                    if item_info['type'] == 'gear' and (
+                        item_info['name'].lower() == gear_name.lower() or 
+                        item_id == normalized_gear
+                    ):
                         emoji = item_info['emoji'] + ' '
                         break
                 message_parts.append(f"{emoji}{gear_name}: <b>{quantity}</b>")
