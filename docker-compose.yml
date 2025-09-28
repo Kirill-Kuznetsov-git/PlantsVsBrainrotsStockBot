@@ -15,15 +15,30 @@ services:
     volumes:
       - ./logs:/app/logs
 
-  # Worker
-  parser-worker:
+  # # Worker
+  # parser-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile.worker
+  #   image: plants-stock-parser-worker:latest
+  #   container_name: parser-worker
+  #   restart: unless-stopped
+  #   command: ["python", "app/workers/parser_worker.py"]
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - plants-network
+  #   volumes:
+  #     - ./logs:/app/logs
+
+  discord-parser-worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile.worker
-    image: plants-stock-parser-worker:latest
-    container_name: parser-worker
+      dockerfile: docker/Dockerfile.discord-parser
+    image: discord-parser-worker:latest
+    container_name: discord-parser-worker
     restart: unless-stopped
-    command: ["python", "app/workers/parser_worker.py"]
+    command: ["python", "app/workers/discord_parser_worker.py"]
     env_file:
       - .env
     networks:
