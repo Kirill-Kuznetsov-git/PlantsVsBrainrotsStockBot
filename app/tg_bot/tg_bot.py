@@ -1,6 +1,6 @@
 import os
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import sys
 
 # Добавляем путь к корневой директории проекта
@@ -30,6 +30,9 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # Настройки пагинации
 STOCKS_PER_PAGE = 6  # Текущий + 5 предыдущих
+
+# Московская временная зона
+MOSCOW_TZ = timezone(timedelta(hours=3))
 
 
 class StockBot:
@@ -77,7 +80,14 @@ class StockBot:
                 else:
                     # Если это строка
                     dt = datetime.fromisoformat(str(created_at).replace('Z', '+00:00'))
-                formatted_date = dt.strftime('%d.%m.%Y %H:%M UTC')
+                
+                # Конвертируем в московское время
+                if dt.tzinfo is None:
+                    # Если нет timezone, считаем что это UTC
+                    dt = dt.replace(tzinfo=timezone.utc)
+                
+                moscow_time = dt.astimezone(MOSCOW_TZ)
+                formatted_date = moscow_time.strftime('%d.%m.%Y %H:%M МСК')
                 message_parts.append(f"📅 <b>{formatted_date}</b>")
             except:
                 message_parts.append(f"📅 <b>{created_at}</b>")
