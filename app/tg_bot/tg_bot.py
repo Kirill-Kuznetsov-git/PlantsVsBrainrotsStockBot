@@ -16,6 +16,7 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
+from telegram.constants import ChatMemberStatus
 
 
 from bson import ObjectId
@@ -27,6 +28,22 @@ load_dotenv()
 
 # Настройки из переменных окружения
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Ссылки для обязательной подписки
+REQUIRED_LINKS = [
+    {
+        'name': 'Канал Playly',
+        'url': 'https://t.me/+rsqT736BdWk0MjVi'
+    },
+    {
+        'name': 'Чат Plants vs Brainrots',
+        'url': 'https://t.me/+MrwAeeeVg5Q0NDQy'
+    },
+    {
+        'name': 'Канал Plants vs Brainrots',
+        'url': 'https://t.me/+HDUc_HXRF-M5Y2Y6'
+    }
+]
 
 # Настройки пагинации
 STOCKS_PER_PAGE = 6  # Текущий + 5 предыдущих
@@ -65,6 +82,48 @@ class StockBot:
             'frost_blower': {'emoji': '🌬️', 'name': 'Frost Blower', 'type': 'gear', 'rarity': 'Legendary'},
             'carrot_launcher': {'emoji': '🥕', 'name': 'Carrot Launcher', 'type': 'gear', 'rarity': 'Godly'}
         }
+        
+    async def check_channel_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Проверяет подписку пользователя на все необходимые каналы"""
+        user_id = update.effective_user.id
+        
+        # Если нет обязательных ссылок, пропускаем проверку
+        if not REQUIRED_LINKS:
+            return True
+        
+        # Для приватных каналов мы не можем проверить подписку через API
+        # Поэтому проверяем, подтверждал ли пользователь подписку ранее
+        user_confirmed = context.user_data.get('subscription_confirmed', False)
+        
+        if not user_confirmed:
+            # Создаем клавиатуру со ссылками
+            keyboard = []
+            
+            for link_info in REQUIRED_LINKS:
+                keyboard.append([InlineKeyboardButton(f"📢 {link_info['name']}", url=link_info['url'])])
+            
+            keyboard.append([InlineKeyboardButton("✅ Я подписался на все каналы", callback_data="check_subscription")])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            message = (
+                "❌ <b>Доступ ограничен</b>\n\n"
+                "Для использования бота необходимо подписаться на следующие каналы:\n\n"
+                "1️⃣ Канал Playly\n"
+                "2️⃣ Чат Plants vs Brainrots\n" 
+                "3️⃣ Канал Plants vs Brainrots\n\n"
+                "Нажмите на кнопки ниже для перехода в каналы, а затем нажмите «Я подписался на все каналы»"
+            )
+            
+            if update.callback_query:
+                await update.callback_query.answer("❌ Необходима подписка на каналы", show_alert=True)
+                await update.callback_query.edit_message_text(message, parse_mode='HTML', reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(message, parse_mode='HTML', reply_markup=reply_markup)
+            
+            return False
+        
+        return True
         
     def format_stock(self, stock: dict, is_current: bool = False) -> str:
         """Форматирование одного стока для отображения"""
@@ -141,6 +200,10 @@ class StockBot:
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
+        # Проверяем подписку
+        if not await self.check_channel_subscription(update, context):
+            return
+            
         keyboard = [
             [KeyboardButton("📊 Текущий сток")],
             [KeyboardButton("📜 История стоков")],
@@ -166,6 +229,10 @@ class StockBot:
     
     async def current_stock_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показать текущий сток (самый последний по created_at)"""
+        # Проверяем подписку
+        if not await self.check_channel_subscription(update, context):
+            return
+            
         # Находим сток с самым поздним created_at
         current_stock = await self.stock_collection.find_one(
             {},
@@ -184,6 +251,10 @@ class StockBot:
     
     async def history_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показать историю стоков (текущий + 5 предыдущих)"""
+        # Проверяем подписку
+        if not await self.check_channel_subscription(update, context):
+            return
+            
         # Получаем 6 последних стоков
         stocks = await self.stock_collection.find({}).sort('created_at', -1).limit(STOCKS_PER_PAGE).to_list(length=STOCKS_PER_PAGE)
         
@@ -212,6 +283,10 @@ class StockBot:
     
     async def autostock_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда для управления автостоком"""
+        # Проверяем подписку
+        if not await self.check_channel_subscription(update, context):
+            return
+            
         await self.show_autostock_menu(update, context, from_command=True)
     
     async def show_autostock_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE, from_command: bool = False):
@@ -346,6 +421,42 @@ class StockBot:
             await query.answer()
             return
         
+        # Обработка кнопки "Я подписался"
+        if data == "check_subscription":
+            # Сохраняем подтверждение подписки
+            context.user_data['subscription_confirmed'] = True
+            
+            await query.answer("✅ Отлично! Теперь вам доступны все функции бота", show_alert=True)
+            
+            # Показываем главное меню
+            keyboard = [
+                [KeyboardButton("📊 Текущий сток")],
+                [KeyboardButton("📜 История стоков")],
+                [KeyboardButton("🔔 Автосток")]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            
+            welcome_message = (
+                "✅ <b>Подписка подтверждена!</b>\n\n"
+                "Теперь вам доступны все функции бота.\n"
+                "Используйте кнопки меню ниже 👇"
+            )
+            
+            # Удаляем сообщение с требованием подписки
+            await query.message.delete()
+            # Отправляем новое сообщение с клавиатурой
+            await context.bot.send_message(
+                chat_id=query.from_user.id,
+                text=welcome_message,
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
+            return
+        
+        # Для остальных кнопок проверяем подписку
+        if not await self.check_channel_subscription(update, context):
+            return
+        
         if data.startswith("toggle_item_"):
             item_id = data.replace("toggle_item_", "")
             await self.toggle_item_subscription(update, context, item_id)
@@ -355,6 +466,10 @@ class StockBot:
     async def text_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик текстовых сообщений (кнопок меню)"""
         text = update.message.text
+        
+        # Проверяем подписку
+        if not await self.check_channel_subscription(update, context):
+            return
         
         if text == "📊 Текущий сток":
             await self.current_stock_command(update, context)
