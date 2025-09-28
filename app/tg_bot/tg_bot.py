@@ -35,7 +35,7 @@ STOCKS_PER_PAGE = 6  # Текущий + 5 предыдущих
 class StockBot:
     def __init__(self):
         self.db: MotorDatabase = get_db()
-        self.stock_collection = self.db.stock
+        self.stock_collection = self.db.stocks
         self.subscriptions_collection = self.db.plant_subscriptions
         
         # Список доступных предметов для подписки
