@@ -29,6 +29,9 @@ load_dotenv()
 # Настройки из переменных окружения
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# Канал для уведомлений о редких предметах
+NOTIFICATION_CHANNEL_ID = os.getenv("NOTIFICATION_CHANNEL_ID")
+
 # Ссылки для обязательной подписки
 REQUIRED_LINKS = [
     {
@@ -125,6 +128,12 @@ class StockBot:
             return False
         
         return True
+    
+    async def is_private_chat(self, update: Update) -> bool:
+        """Проверяет, что сообщение из личного чата"""
+        if update.message and update.message.chat.type != 'private':
+            return False
+        return True
         
     def format_stock(self, stock: dict, is_current: bool = False) -> str:
         """Форматирование одного стока для отображения"""
@@ -201,6 +210,10 @@ class StockBot:
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
+        # Проверяем, что это личный чат
+        if not await self.is_private_chat(update):
+            return
+            
         # Проверяем подписку
         if not await self.check_channel_subscription(update, context):
             return
@@ -230,6 +243,10 @@ class StockBot:
     
     async def current_stock_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показать текущий сток (самый последний по created_at)"""
+        # Проверяем, что это личный чат
+        if not await self.is_private_chat(update):
+            return
+            
         # Проверяем подписку
         if not await self.check_channel_subscription(update, context):
             return
@@ -252,6 +269,10 @@ class StockBot:
     
     async def history_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показать историю стоков (текущий + 5 предыдущих)"""
+        # Проверяем, что это личный чат
+        if not await self.is_private_chat(update):
+            return
+            
         # Проверяем подписку
         if not await self.check_channel_subscription(update, context):
             return
@@ -284,6 +305,10 @@ class StockBot:
     
     async def autostock_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда для управления автостоком"""
+        # Проверяем, что это личный чат
+        if not await self.is_private_chat(update):
+            return
+            
         # Проверяем подписку
         if not await self.check_channel_subscription(update, context):
             return
@@ -480,6 +505,10 @@ class StockBot:
     
     async def text_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик текстовых сообщений (кнопок меню)"""
+        # Проверяем, что это личный чат
+        if not await self.is_private_chat(update):
+            return
+            
         text = update.message.text
         
         # Проверяем подписку

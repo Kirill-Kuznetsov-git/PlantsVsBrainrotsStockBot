@@ -23,6 +23,7 @@ CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', '1421601402425311362'))
 # Настройки Telegram
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 telegram_bot = Bot(token=TELEGRAM_BOT_TOKEN) if TELEGRAM_BOT_TOKEN else None
+NOTIFICATION_CHANNEL_ID = os.getenv('NOTIFICATION_CHANNEL_ID')  # ID канала для уведомлений о редких предметах
 
 # Включаем intents
 intents = discord.Intents.default()
@@ -98,6 +99,59 @@ async def send_notifications(stock_data):
             except Exception as e:
                 print(f"  ❌ Ошибка отправки: {e}")
 
+async def check_rare_items(stock_data):
+    """Проверяет наличие редких предметов и отправляет в канал"""
+    if not telegram_bot or not NOTIFICATION_CHANNEL_ID:
+        return
+    
+    # Список редких предметов
+    rare_seeds = [
+        'watermelon_seed',
+        'grape_seed', 
+        'cocotank_seed',
+        'mr_carrot_seed',
+        'tomatrio_seed',
+        'carnivorous_plant_seed',
+        "shroombino_seed"
+    ]
+    
+    found_rare = []
+    
+    # Проверяем семена
+    for seed_name, quantity in stock_data.get('seeds_stock', {}).items():
+        # Нормализуем название для сравнения
+        normalized = seed_name.lower().replace(' ', '_').strip()
+        if not normalized.endswith('_seed'):
+            normalized = f"{normalized}_seed"
+        
+        # Проверяем, является ли семя редким
+        if normalized in rare_seeds:
+            found_rare.append(f"💎 {seed_name}: {quantity}")
+            print(f"  🎯 Найден редкий предмет: {seed_name}")
+    
+    # Если нашли редкие предметы, отправляем в канал
+    if found_rare:
+        print(f"\n🎉 Найдено {len(found_rare)} редких предметов!")
+        
+        message = "🚨 <b>РЕДКИЕ ПРЕДМЕТЫ В НОВОМ СТОКЕ!</b> 🚨\n\n"
+        message += "\n".join(found_rare)
+        
+        # Добавляем московское время
+        from datetime import timezone, timedelta
+        moscow_tz = timezone(timedelta(hours=3))
+        moscow_time = stock_data['created_at'].astimezone(moscow_tz)
+        message += f"\n\n📅 Время: {moscow_time.strftime('%H:%M МСК')}"
+        
+        try:
+            await telegram_bot.send_message(
+                chat_id=NOTIFICATION_CHANNEL_ID,
+                text=message,
+                parse_mode='HTML'
+            )
+            print("  ✅ Уведомление о редких предметах отправлено в канал")
+        except Exception as e:
+            print(f"  ❌ Ошибка отправки в канал: {e}")
+
 @bot.event
 async def on_ready():
     global db
@@ -153,6 +207,7 @@ async def on_message(message):
     
     # Отправляем уведомления
     await send_notifications(stock_data)
+    await check_rare_items(stock_data)
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
