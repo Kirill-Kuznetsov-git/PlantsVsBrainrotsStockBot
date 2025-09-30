@@ -132,14 +132,14 @@ async def on_message(message):
     seeds_stock_list = seeds_stock.split("\n")
     seeds_stock = {}
     for seed in seeds_stock_list:
-        seed_name = seed.split(">")[1].split("*")[0].strip()
+        seed_name = seed.split(">")[1].split("**x")[0].strip().replace("*", "")
         seed_value = int(seed.split("**x")[1][0])
         seeds_stock[seed_name] = seed_value
 
     gear_stock_list = gear_stock.split("\n")
     gear_stock = {}
     for gear in gear_stock_list:
-        gear_name = gear.split(">")[1].split("*")[0].strip()
+        gear_name = gear.split(">")[1].split("**x")[0].strip().replace("*", "")
         gear_value = int(gear.split("**x")[1][0])
         gear_stock[gear_name] = gear_value
 
