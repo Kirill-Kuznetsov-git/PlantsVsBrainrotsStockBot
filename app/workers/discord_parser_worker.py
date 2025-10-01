@@ -206,8 +206,8 @@ async def on_message(message):
     await db.stocks.insert_one(stock_data)
     
     # Отправляем уведомления
-    await send_notifications(stock_data)
     await check_rare_items(stock_data)
+    await send_notifications(stock_data)
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
