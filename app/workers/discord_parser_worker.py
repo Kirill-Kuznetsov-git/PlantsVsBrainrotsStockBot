@@ -140,7 +140,7 @@ async def check_rare_items(stock_data):
         moscow_tz = timezone(timedelta(hours=3))
         moscow_time = stock_data['created_at'].astimezone(moscow_tz)
         message += f"\n\n📅 Время: {moscow_time.strftime('%H:%M МСК')}"
-        message += f"\n\n🎉 Наш бот с кастомными стоками: https://t.me/plants_vs_brainrots_bot"
+        message += f"\n\n🎉 Наш бот с кастомными стоками: https://t.me//plantsvsbrainrot_stock_bot"
         
         try:
             await telegram_bot.send_message(
