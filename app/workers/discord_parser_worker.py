@@ -3,7 +3,7 @@ from discord.ext import commands
 import asyncio
 import os
 import re
-from datetime import datetime
+from datetime import timezone, timedelta
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import sys
@@ -136,7 +136,6 @@ async def check_rare_items(stock_data):
         message += "\n".join(found_rare)
         
         # Добавляем московское время
-        from datetime import timezone, timedelta
         moscow_tz = timezone(timedelta(hours=3))
         moscow_time = stock_data['created_at'].astimezone(moscow_tz)
         message += f"\n\n📅 Время: {moscow_time.strftime('%H:%M МСК')}"
@@ -146,7 +145,8 @@ async def check_rare_items(stock_data):
             await telegram_bot.send_message(
                 chat_id=NOTIFICATION_CHANNEL_ID,
                 text=message,
-                parse_mode='HTML'
+                parse_mode='HTML',
+                disable_web_page_preview=True
             )
             print("  ✅ Уведомление о редких предметах отправлено в канал")
         except Exception as e:
