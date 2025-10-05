@@ -79,6 +79,7 @@ class StockBot:
             'mr_carrot_seed': {'emoji': '🥕', 'name': 'Mr Carrot seed', 'type': 'seed', 'rarity': 'Secret'},
             'tomatrio_seed': {'emoji': '🍅', 'name': 'Tomatrio seed', 'type': 'seed', 'rarity': 'Secret'},
             'shroombino_seed': {'emoji': '🍄', 'name': 'Shroombino seed', 'type': 'seed', 'rarity': 'Secret'},
+            'mango_seed': {'emoji': '🥭', 'name': 'Mango seed', 'type': 'seed', 'rarity': 'Secret'},
             # Gear
             'water_bucket': {'emoji': '🪣', 'name': 'Water Bucket', 'type': 'gear', 'rarity': 'Epic'},
             'frost_grenade': {'emoji': '❄️', 'name': 'Frost Grenade', 'type': 'gear', 'rarity': 'Epic'},

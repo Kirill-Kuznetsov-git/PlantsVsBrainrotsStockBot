@@ -247,7 +247,8 @@ class StockParser:
             'corn': '🌽',
             'tomato': '🍅',
             'carrot': '🥕',
-            'pepper': '🌶️'
+            'pepper': '🌶️',
+            'mango': '🥭'
         }
         
         message_parts = ["🎯 <b>ВАШИ РАСТЕНИЯ В СТОКЕ!</b>\n"]
