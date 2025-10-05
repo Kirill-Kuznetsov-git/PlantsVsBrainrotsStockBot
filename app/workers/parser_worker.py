@@ -56,7 +56,8 @@ class StockParser:
             'corn': ['corn', '🌽'],
             'tomato': ['tomato', '🍅'],
             'carrot': ['carrot', '🥕'],
-            'pepper': ['pepper', '🌶️', '🌶']
+            'pepper': ['pepper', '🌶️', '🌶'],
+            "mango": ["mango", "🥭"]
         }
         
     async def init(self):
