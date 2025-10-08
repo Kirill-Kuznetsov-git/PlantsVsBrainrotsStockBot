@@ -106,7 +106,6 @@ async def check_rare_items(stock_data):
     
     # Список редких предметов
     rare_seeds = [
-        'grape_seed', 
         'cocotank_seed',
         'mr_carrot_seed',
         'tomatrio_seed',
