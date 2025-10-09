@@ -36,8 +36,57 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # MongoDB collections
 db: AsyncIOMotorDatabase = None
 
+async def send_user_notification(user_id, subscribed_items, stock_data):
+    """Отправляет уведомление одному пользователю"""
+    if not subscribed_items:
+        return
+        
+    print(f"\nПроверяем подписки пользователя {user_id}: {subscribed_items}")
+    
+    # Проверяем совпадения
+    matched_items = []
+    
+    # Проверяем семена
+    for seed_name, quantity in stock_data.get('seeds_stock', {}).items():
+        # Нормализуем название для сравнения
+        normalized = seed_name.lower().replace(' ', '_')
+        seed_key = f"{normalized}_seed" if not normalized.endswith('_seed') else normalized
+        
+        # Проверяем различные варианты
+        if (normalized in subscribed_items or 
+            seed_key in subscribed_items or
+            f"{normalized.replace('_', '')}_seed" in subscribed_items):
+            matched_items.append(f"🌱 {seed_name}: {quantity}")
+            print(f"  ✅ Найдено совпадение для семени: {seed_name} -> {seed_key}")
+    
+    # Проверяем снаряжение  
+    for gear_name, quantity in stock_data.get('gear_stock', {}).items():
+        normalized = gear_name.lower().replace(' ', '_')
+        
+        if normalized in subscribed_items:
+            matched_items.append(f"⚔️ {gear_name}: {quantity}")
+            print(f"  ✅ Найдено совпадение для снаряжения: {gear_name} -> {normalized}")
+    
+    if matched_items:
+        print(f"  📨 Отправляем уведомление с {len(matched_items)} предметами")
+        message = "🔔 <b>Автосток уведомление!</b>\n\n"
+        message += "В новом стоке появились ваши предметы:\n\n"
+        message += "\n".join(matched_items)
+        message += "\n\n/current - посмотреть полный сток"
+        
+        try:
+            await telegram_bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
+            print(f"  ✅ Уведомление отправлено")
+        except Exception as e:
+            print(f"  ❌ Ошибка отправки: {e}")
+
 async def send_notifications(stock_data):
-    """Отправляет уведомления подписчикам"""
+    """Отправляет уведомления подписчикам параллельно"""
     if not telegram_bot:
         return
     
@@ -49,55 +98,17 @@ async def send_notifications(stock_data):
     print("Семена:", stock_data.get('seeds_stock', {}))
     print("Снаряжение:", stock_data.get('gear_stock', {}))
     
+    # Создаем задачи для отправки уведомлений всем пользователям параллельно
+    tasks = []
     for subscription in subscriptions:
         user_id = subscription.get('user_id')
         subscribed_items = subscription.get('items', [])
-        
-        if not subscribed_items:
-            continue
-            
-        print(f"\nПроверяем подписки пользователя {user_id}: {subscribed_items}")
-        
-        # Проверяем совпадения
-        matched_items = []
-        
-        # Проверяем семена
-        for seed_name, quantity in stock_data.get('seeds_stock', {}).items():
-            # Нормализуем название для сравнения
-            normalized = seed_name.lower().replace(' ', '_')
-            seed_key = f"{normalized}_seed" if not normalized.endswith('_seed') else normalized
-            
-            # Проверяем различные варианты
-            if (normalized in subscribed_items or 
-                seed_key in subscribed_items or
-                f"{normalized.replace('_', '')}_seed" in subscribed_items):
-                matched_items.append(f"🌱 {seed_name}: {quantity}")
-                print(f"  ✅ Найдено совпадение для семени: {seed_name} -> {seed_key}")
-        
-        # Проверяем снаряжение  
-        for gear_name, quantity in stock_data.get('gear_stock', {}).items():
-            normalized = gear_name.lower().replace(' ', '_')
-            
-            if normalized in subscribed_items:
-                matched_items.append(f"⚔️ {gear_name}: {quantity}")
-                print(f"  ✅ Найдено совпадение для снаряжения: {gear_name} -> {normalized}")
-        
-        if matched_items:
-            print(f"  📨 Отправляем уведомление с {len(matched_items)} предметами")
-            message = "🔔 <b>Автосток уведомление!</b>\n\n"
-            message += "В новом стоке появились ваши предметы:\n\n"
-            message += "\n".join(matched_items)
-            message += "\n\n/current - посмотреть полный сток"
-            
-            try:
-                await telegram_bot.send_message(
-                    chat_id=user_id,
-                    text=message,
-                    parse_mode='HTML'
-                )
-                print(f"  ✅ Уведомление отправлено")
-            except Exception as e:
-                print(f"  ❌ Ошибка отправки: {e}")
+        task = send_user_notification(user_id, subscribed_items, stock_data)
+        tasks.append(task)
+    
+    # Запускаем все задачи параллельно
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 async def check_rare_items(stock_data):
     """Проверяет наличие редких предметов и отправляет в канал"""
@@ -106,7 +117,6 @@ async def check_rare_items(stock_data):
     
     # Список редких предметов
     rare_seeds = [
-        'cocotank_seed',
         'mr_carrot_seed',
         'tomatrio_seed',
         'carnivorous_plant_seed',
@@ -204,9 +214,12 @@ async def on_message(message):
 
     await db.stocks.insert_one(stock_data)
     
-    # Отправляем уведомления
-    await check_rare_items(stock_data)
-    await send_notifications(stock_data)
+    # Отправляем уведомления параллельно
+    await asyncio.gather(
+        check_rare_items(stock_data),
+        send_notifications(stock_data),
+        return_exceptions=True
+    )
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
