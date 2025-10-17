@@ -120,7 +120,9 @@ async def check_rare_items(stock_data):
         'mr_carrot_seed',
         'tomatrio_seed',
         'carnivorous_plant_seed',
-        "shroombino_seed"
+        "shroombino_seed",
+        "mango_seed",
+        "king_limon_seed"
     ]
     
     found_rare = []
