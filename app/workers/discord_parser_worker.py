@@ -3,13 +3,14 @@ from discord.ext import commands
 import asyncio
 import os
 import re
-from datetime import timezone, timedelta
+from datetime import timezone, timedelta, datetime
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import sys
 from telegram import Bot
 from telegram.request import HTTPXRequest
 import httpx
+import time
 
 # Добавляем путь к корневой директории
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -112,6 +113,10 @@ async def send_notifications(stock_data):
     if not telegram_bot:
         return
     
+    start_time = time.time()
+    print(f"\n{'='*60}")
+    print(f"🚀 [{datetime.now().strftime('%H:%M:%S')}] НАЧАЛО отправки уведомлений пользователям")
+    
     # Получаем подписчиков
     subscriptions = await db.plant_subscriptions.find({}).to_list(length=None)
     
@@ -119,6 +124,7 @@ async def send_notifications(stock_data):
     print("\n=== НОВЫЙ СТОК ===")
     print("Семена:", stock_data.get('seeds_stock', {}))
     print("Снаряжение:", stock_data.get('gear_stock', {}))
+    print(f"Подписчиков в базе: {len(subscriptions)}")
     
     # Создаем задачи для отправки уведомлений всем пользователям параллельно
     tasks = []
@@ -131,11 +137,20 @@ async def send_notifications(stock_data):
     # Запускаем все задачи параллельно
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
+    
+    elapsed = time.time() - start_time
+    print(f"✅ [{datetime.now().strftime('%H:%M:%S')}] ЗАВЕРШЕНА отправка уведомлений пользователям")
+    print(f"⏱️  Время выполнения: {elapsed:.2f} секунд")
+    print(f"{'='*60}\n")
 
 async def check_rare_items(stock_data):
     """Проверяет наличие редких предметов и отправляет в канал"""
     if not telegram_bot or not NOTIFICATION_CHANNEL_ID:
         return
+    
+    start_time = time.time()
+    print(f"\n{'='*60}")
+    print(f"💎 [{datetime.now().strftime('%H:%M:%S')}] НАЧАЛО проверки редких предметов")
     
     # Список редких предметов
     rare_seeds = [
@@ -164,6 +179,7 @@ async def check_rare_items(stock_data):
     # Если нашли редкие предметы, отправляем в канал
     if found_rare:
         print(f"\n🎉 Найдено {len(found_rare)} редких предметов!")
+        print(f"📨 Отправляем уведомление в канал {NOTIFICATION_CHANNEL_ID}...")
         
         message = "🚨 <b>РЕДКИЕ ПРЕДМЕТЫ В НОВОМ СТОКЕ!</b> 🚨\n\n"
         message += "\n".join(found_rare)
@@ -182,9 +198,15 @@ async def check_rare_items(stock_data):
                 parse_mode='HTML',
                 disable_web_page_preview=True
             )
-            print("  ✅ Уведомление о редких предметах отправлено в канал")
+            elapsed = time.time() - start_time
+            print(f"✅ [{datetime.now().strftime('%H:%M:%S')}] Уведомление о редких предметах отправлено")
+            print(f"⏱️  Время выполнения: {elapsed:.2f} секунд")
         except Exception as e:
-            print(f"  ❌ Ошибка отправки в канал: {e}")
+            print(f"❌ Ошибка отправки в канал: {e}")
+    else:
+        print("ℹ️  Редких предметов не найдено")
+    
+    print(f"{'='*60}\n")
 
 @bot.event
 async def on_ready():
@@ -237,6 +259,10 @@ async def on_message(message):
         "gear_stock": gear_stock
     }
 
+    print(f"\n{'#'*60}")
+    print(f"📦 [{datetime.now().strftime('%H:%M:%S')}] НОВЫЙ СТОК ПОЛУЧЕН И СОХРАНЕН В БД")
+    print(f"{'#'*60}")
+    
     await db.stocks.insert_one(stock_data)
     
     # Сначала отправляем уведомление о редких предметах (приоритет)
@@ -244,6 +270,10 @@ async def on_message(message):
     
     # Затем отправляем уведомления пользователям
     await send_notifications(stock_data)
+    
+    print(f"{'#'*60}")
+    print(f"🎉 [{datetime.now().strftime('%H:%M:%S')}] ВСЕ УВЕДОМЛЕНИЯ ОТПРАВЛЕНЫ")
+    print(f"{'#'*60}\n")
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
