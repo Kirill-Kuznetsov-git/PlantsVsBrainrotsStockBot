@@ -36,6 +36,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # MongoDB collections
 db: AsyncIOMotorDatabase = None
 
+# Семафор для ограничения одновременных запросов к Telegram API
+telegram_semaphore = asyncio.Semaphore(10)  # Максимум 10 одновременных запросов
+
 async def send_user_notification(user_id, subscribed_items, stock_data):
     """Отправляет уведомление одному пользователю"""
     if not subscribed_items:
@@ -74,16 +77,17 @@ async def send_user_notification(user_id, subscribed_items, stock_data):
         message += "\n".join(matched_items)
         message += "\n\n/current - посмотреть полный сток"
         
-        try:
-            await telegram_bot.send_message(
-                chat_id=user_id,
-                text=message,
-                parse_mode='HTML',
-                disable_web_page_preview=True
-            )
-            print(f"  ✅ Уведомление отправлено")
-        except Exception as e:
-            print(f"  ❌ Ошибка отправки: {e}")
+        async with telegram_semaphore:
+            try:
+                await telegram_bot.send_message(
+                    chat_id=user_id,
+                    text=message,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+                print(f"  ✅ Уведомление отправлено")
+            except Exception as e:
+                print(f"  ❌ Ошибка отправки: {e}")
 
 async def send_notifications(stock_data):
     """Отправляет уведомления подписчикам параллельно"""
@@ -152,16 +156,17 @@ async def check_rare_items(stock_data):
         message += f"\n\n📅 Время: {moscow_time.strftime('%H:%M МСК')}"
         message += f"\n\n🎉 <a href='https://t.me/plantsvsbrainrot_stock_bot'>Наш бот с кастомными стоками</a>"
         
-        try:
-            await telegram_bot.send_message(
-                chat_id=NOTIFICATION_CHANNEL_ID,
-                text=message,
-                parse_mode='HTML',
-                disable_web_page_preview=True
-            )
-            print("  ✅ Уведомление о редких предметах отправлено в канал")
-        except Exception as e:
-            print(f"  ❌ Ошибка отправки в канал: {e}")
+        async with telegram_semaphore:
+            try:
+                await telegram_bot.send_message(
+                    chat_id=NOTIFICATION_CHANNEL_ID,
+                    text=message,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+                print("  ✅ Уведомление о редких предметах отправлено в канал")
+            except Exception as e:
+                print(f"  ❌ Ошибка отправки в канал: {e}")
 
 @bot.event
 async def on_ready():
