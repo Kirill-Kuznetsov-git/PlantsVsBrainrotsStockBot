@@ -9,7 +9,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 import sys
 from telegram import Bot
 from telegram.request import HTTPXRequest
-import httpx
 import time
 
 # Добавляем путь к корневой директории
@@ -29,14 +28,13 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 # Создаем бота с большим пулом соединений
 if TELEGRAM_BOT_TOKEN:
     # Настройка пула соединений: 100 соединений для большого количества пользователей
-    httpx_client = httpx.AsyncClient(
-        limits=httpx.Limits(
-            max_connections=100,          # Максимум 100 одновременных соединений
-            max_keepalive_connections=50  # Держим 50 соединений открытыми
-        ),
-        timeout=httpx.Timeout(60.0)       # Таймаут 60 секунд
+    request = HTTPXRequest(
+        connection_pool_size=100,        # Максимум 100 одновременных соединений
+        connect_timeout=60.0,            # Таймаут соединения
+        read_timeout=60.0,               # Таймаут чтения
+        write_timeout=60.0,              # Таймаут записи
+        pool_timeout=60.0                # Таймаут получения соединения из пула
     )
-    request = HTTPXRequest(http_version="1.1", client=httpx_client)
     telegram_bot = Bot(token=TELEGRAM_BOT_TOKEN, request=request)
 else:
     telegram_bot = None
