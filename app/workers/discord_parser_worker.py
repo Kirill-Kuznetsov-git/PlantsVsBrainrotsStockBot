@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import sys
 from telegram import Bot
+from telegram.request import HTTPXRequest
+import httpx
 
 # Добавляем путь к корневой директории
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,7 +24,22 @@ CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', '1421601402425311362'))
 
 # Настройки Telegram
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-telegram_bot = Bot(token=TELEGRAM_BOT_TOKEN) if TELEGRAM_BOT_TOKEN else None
+
+# Создаем бота с большим пулом соединений
+if TELEGRAM_BOT_TOKEN:
+    # Настройка пула соединений: 100 соединений для большого количества пользователей
+    httpx_client = httpx.AsyncClient(
+        limits=httpx.Limits(
+            max_connections=100,          # Максимум 100 одновременных соединений
+            max_keepalive_connections=50  # Держим 50 соединений открытыми
+        ),
+        timeout=httpx.Timeout(60.0)       # Таймаут 60 секунд
+    )
+    request = HTTPXRequest(http_version="1.1", client=httpx_client)
+    telegram_bot = Bot(token=TELEGRAM_BOT_TOKEN, request=request)
+else:
+    telegram_bot = None
+
 NOTIFICATION_CHANNEL_ID = os.getenv('NOTIFICATION_CHANNEL_ID')  # ID канала для уведомлений о редких предметах
 
 # Включаем intents
@@ -37,7 +54,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 db: AsyncIOMotorDatabase = None
 
 # Семафор для ограничения одновременных запросов к Telegram API
-telegram_semaphore = asyncio.Semaphore(10)  # Максимум 10 одновременных запросов
+# Telegram лимит: 30 сообщений в секунду, но пул соединений может быть больше
+telegram_semaphore = asyncio.Semaphore(30)  # Ограничиваем до 30 одновременных запросов (соблюдаем rate limit)
 
 async def send_user_notification(user_id, subscribed_items, stock_data):
     """Отправляет уведомление одному пользователю"""
@@ -156,17 +174,17 @@ async def check_rare_items(stock_data):
         message += f"\n\n📅 Время: {moscow_time.strftime('%H:%M МСК')}"
         message += f"\n\n🎉 <a href='https://t.me/plantsvsbrainrot_stock_bot'>Наш бот с кастомными стоками</a>"
         
-        async with telegram_semaphore:
-            try:
-                await telegram_bot.send_message(
-                    chat_id=NOTIFICATION_CHANNEL_ID,
-                    text=message,
-                    parse_mode='HTML',
-                    disable_web_page_preview=True
-                )
-                print("  ✅ Уведомление о редких предметах отправлено в канал")
-            except Exception as e:
-                print(f"  ❌ Ошибка отправки в канал: {e}")
+        # Отправляем без семафора - это приоритетное сообщение (1 сообщение в канал)
+        try:
+            await telegram_bot.send_message(
+                chat_id=NOTIFICATION_CHANNEL_ID,
+                text=message,
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
+            print("  ✅ Уведомление о редких предметах отправлено в канал")
+        except Exception as e:
+            print(f"  ❌ Ошибка отправки в канал: {e}")
 
 @bot.event
 async def on_ready():
@@ -221,12 +239,11 @@ async def on_message(message):
 
     await db.stocks.insert_one(stock_data)
     
-    # Отправляем уведомления параллельно
-    await asyncio.gather(
-        check_rare_items(stock_data),
-        send_notifications(stock_data),
-        return_exceptions=True
-    )
+    # Сначала отправляем уведомление о редких предметах (приоритет)
+    await check_rare_items(stock_data)
+    
+    # Затем отправляем уведомления пользователям
+    await send_notifications(stock_data)
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
